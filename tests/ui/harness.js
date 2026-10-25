@@ -112,10 +112,10 @@ window.supabase = { createClient() {
 async function newPage(browser, base, { users = [], stub = {}, configured = true, viewport } = {}) {
   const ctx = await browser.newContext(viewport ? { viewport } : {});
   const page = await ctx.newPage();
-  await page.route("**/cdn.jsdelivr.net/**", (route) => {
+  await page.route(/\/assets\/vendor\//, (route) => {
     const u = route.request().url();
     if (u.includes("supabase")) return route.fulfill({ contentType: "text/javascript", body: SDK });
-    if (u.includes("chart.js")) return route.fulfill({ contentType: "text/javascript", body: "window.__charts=[];window.Chart=class{constructor(el,cfg){window.__charts.push({id:el.id,type:cfg.type,data:cfg.data});}}" });
+    if (u.includes("chart.umd")) return route.fulfill({ contentType: "text/javascript", body: "window.__charts=[];window.Chart=class{constructor(el,cfg){window.__charts.push({id:el.id,type:cfg.type,data:cfg.data});}}" });
     if (u.includes("bootstrap")) return route.fulfill({ contentType: "text/css", body: ".d-none{display:none!important}.invalid-feedback{display:none}.is-invalid~.invalid-feedback{display:block}" });
     return route.abort();
   });

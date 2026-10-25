@@ -60,10 +60,11 @@ a { color: var(--ne-link); }
 /* App shell for signed-in staff pages */
 .ne-app { display: flex; min-height: 100vh; }
 .ne-sidebar { width: 240px; background: var(--ne-navy); color: #fff; flex: 0 0 240px; padding: 1.25rem 0; }
-.ne-sidebar .brand { font-weight: 800; padding: 0 1.25rem 1.25rem; font-size: 1.1rem; }
-.ne-sidebar a, .ne-sidebar .disabled-item { display: block; color: #cfd6e6; padding: .7rem 1.25rem; text-decoration: none; font-weight: 600; }
+.ne-sidebar .brand { font-weight: 800; padding: 0 1.25rem 1rem; font-size: 1.1rem; }
+.ne-sidebar .items { padding: 0 .75rem; }
+.ne-sidebar a, .ne-sidebar .disabled-item { display: block; color: #cfd6e6; padding: .7rem 1rem; text-decoration: none; font-weight: 600; border-radius: 8px; margin-bottom: .25rem; }
 .ne-sidebar a:hover { background: var(--ne-topbar); color: #fff; }
-.ne-sidebar a.active { background: var(--ne-topbar); color: #fff; border-left: 4px solid var(--ne-amber); padding-left: calc(1.25rem - 4px); }
+.ne-sidebar a.active { background: var(--ne-amber); color: var(--ne-navy); font-weight: 800; }
 .ne-sidebar .disabled-item { opacity: .5; cursor: not-allowed; }
 .ne-sidebar .soon { font-size: .7rem; background: var(--ne-amber); color: var(--ne-navy); border-radius: 4px; padding: 0 .35rem; margin-left: .4rem; }
 .ne-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }

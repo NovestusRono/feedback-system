@@ -13,7 +13,7 @@
 | Attachment link sharing | Signed URLs valid 60 seconds, issued only where storage RLS allows | db + UI tests |
 | Open redirect after login | `safeNext()` accepts only same-site relative `.html` paths | auth UI tests |
 | CSV formula injection | Cells starting with `= + - @` are prefixed | admin-m9 UI tests |
-| Supply chain | CDN libraries pinned to exact versions with Subresource Integrity hashes | gate |
+| Supply chain | Bootstrap 5.3.3, supabase-js 2.45.4 and Chart.js 4.4.3 are self-hosted in `assets/vendor/` (exact npm files, licences included); no third-party scripts load at runtime | gate |
 | Report data exposure | Reports admin-only; CSV carries names only | db + UI tests |
 | Account enumeration | Password reset always reports success; generic login errors | auth UI tests |
 | Audit trail | Role/status changes, assignments, responses, resolutions, settings, report events; metadata whitelisted, no secrets | db tests |

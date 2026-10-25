@@ -15,3 +15,6 @@ Database 229/229, Edge Function logic 12/12, UI 85/48/37/48/53/56/79, release ga
 1. Run the checklist in `DEPLOYMENT.md` on your real Supabase project. I have no access to one, so real Auth emails, real Storage and the deployed Edge Functions are unverified.
 2. Provide the project URL and anon key (a public value) in `js/supabase-client.js`.
 3. Decisions still open: assignment leaves status Pending until the employee starts (assumed); no manager "unassign"; About/Help content on the home page; forced password change for new staff.
+
+## Update: libraries are now self-hosted
+The CDN + integrity-hash approach was replaced: Bootstrap, supabase-js (plus its helper chunk) and Chart.js are served from `assets/vendor/`. If a CDN is blocked, slow, or a hash does not match, a browser silently drops the stylesheet or script and the pages look unstyled or broken. Self-hosting removes that failure mode (and works on GitHub Pages and offline). Screenshots rendered with the real libraries match the wireframes. The active sidebar item now uses the wireframe's amber pill.

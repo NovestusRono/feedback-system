@@ -24,7 +24,7 @@ Edit `js/supabase-client.js`: set `SUPABASE_URL` and `SUPABASE_ANON_KEY`. The an
 ```
 node scripts/check-release.mjs
 ```
-It must print `Release check passed.` (it fails on placeholders, any service-role key or non-anon JWT, and CDN assets without integrity hashes).
+It must print `Release check passed.` (it fails on placeholders, any service-role key or non-anon JWT, and any external script or stylesheet without an integrity hash; the site itself loads nothing from a CDN).
 
 ## 4. GitHub Pages
 ```

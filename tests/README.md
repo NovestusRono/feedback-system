@@ -12,7 +12,7 @@ Final real-project verification with four test accounts happens in Milestone 10.
 `node --test tests/functions/handlers.test.mjs` (Node 22.18+). Uses fake dependencies: role checks, validation, rollback, CORS, audit.
 
 ## UI (`tests/ui`)
-`node tests/ui/auth.test.js` (needs `npm i playwright` and a Chromium). Serves the repo locally and replaces supabase-js and the CDN CSS with stubs, so it tests page logic (login, registration, guards, redirects, navigation, mobile layout), not the real backend.
+`node tests/ui/auth.test.js` (needs `npm i playwright` and a Chromium). Serves the repo locally and replaces supabase-js and the vendored libraries with stubs, so it tests page logic (login, registration, guards, redirects, navigation, mobile layout), not the real backend.
 `node tests/ui/submit.test.js` covers the feedback form, attachments and confirmation page.
 `node tests/ui/tracking.test.js` covers the My Feedback list, filters, updates and details page.
 `node tests/ui/admin.test.js` covers the administrator dashboard, feedback management and details.
