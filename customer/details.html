@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Feedback Details | Nyota Electronics</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+<link href="../assets/css/app.css" rel="stylesheet">
+</head>
+<body class="guard-pending">
+<div id="shell-root"></div>
+<noscript><p class="p-4">JavaScript is required.</p></noscript>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
+<script type="module">
+import { backendProblem } from "../js/supabase-client.js";
+import { requireRole, url } from "../js/auth.js";
+import { mountShell } from "../js/navigation.js";
+import { esc } from "../js/validation.js";
+import { getMyFeedback, listMyResponses, listMyAttachments, attachmentLink, markUpdatesRead } from "../js/feedback.js";
+import { TYPE_LABEL, METHOD_LABEL, statusBadge, fmtDateTime, stars } from "../js/dashboard.js";
+
+if (backendProblem()) { document.body.classList.remove("guard-pending"); document.body.textContent = backendProblem(); }
+else {
+  const profile = await requireRole(["customer"]);
+  const main = mountShell(profile, "dashboard");
+  const id = new URLSearchParams(location.search).get("id") || "";
+  const f = /^[0-9a-f-]{36}$/i.test(id) ? await getMyFeedback(id) : null;
+  const back = `<a class="btn-ne-secondary" href="${esc(url("customer/dashboard.html"))}">Back to My Feedback</a>`;
+  if (!f) {
+    main.innerHTML = `<div class="ne-form-card text-center"><h1>Feedback not found</h1><p class="text-muted-ne">We could not find that feedback. It may not belong to your account.</p>${back}</div>`;
+  } else {
+    const [responses, attachments] = await Promise.all([listMyResponses(f.id), listMyAttachments(f.id)]);
+    markUpdatesRead(f.id);
+    const reached = { Pending: 0, "In Progress": 1, Resolved: 2 }[f.status] ?? 0;
+    const step = (i, label, when) => `<li class="${i === 0 || reached === 2 ? "done" : i === reached ? "current" : ""}">${label}<small>${esc(when || "")}</small></li>`;
+    const row = (k, v) => (v ? `<dt>${k}</dt><dd>${esc(v)}</dd>` : "");
+    main.innerHTML = `
+      <h1 class="ne-page-title">FEEDBACK DETAILS</h1>
+      <div class="ne-panel mb-3">
+        <ol class="ne-steps" aria-label="Progress">${step(0, "Submitted", fmtDateTime(f.created_at))}${step(1, "In Progress", "")}${step(2, "Resolved", fmtDateTime(f.resolved_at))}</ol>
+        <dl class="ne-detail">
+          <dt>Reference Number:</dt><dd id="ref">${esc(f.reference_number)}</dd>
+          <dt>Status:</dt><dd>${statusBadge(f.status)}</dd>
+          <dt>Feedback Type:</dt><dd>${esc(TYPE_LABEL[f.feedback_type] || f.feedback_type)}</dd>
+          <dt>Subject:</dt><dd>${esc(f.subject)}</dd>
+          <dt>Service rating:</dt><dd aria-label="${esc(f.service_rating)} out of 5">${esc(stars(f.service_rating))}</dd>
+          ${row("Category:", f.product_service_category)}${row("Product:", f.product_name)}${row("Receipt / order no.:", f.purchase_reference)}
+          ${row("Preferred response:", METHOD_LABEL[f.preferred_response_method])}${row("Submitted:", fmtDateTime(f.created_at))}
+        </dl>
+        <span class="ne-label">Description:</span><div class="ne-box mb-3" id="desc">${esc(f.description)}</div>
+        ${attachments.length ? `<span class="ne-label">Attachments:</span><ul class="ne-file-list" id="atts">${attachments.map((a) => `<li><span>${esc(a.file_name)}</span><button type="button" class="btn-view" data-path="${esc(a.storage_path)}">Open</button></li>`).join("")}</ul>` : ""}
+      </div>
+      ${f.status === "Resolved" && f.resolution_details ? `<div class="ne-panel mb-3"><span class="ne-label">Resolution (${esc(fmtDateTime(f.resolved_at))}):</span><div class="ne-box" id="resolution">${esc(f.resolution_details)}</div></div>` : ""}
+      <div class="ne-panel mb-3"><span class="ne-label">Responses from Nyota Electronics:</span>
+        ${responses.length ? responses.map((r) => `<div class="ne-box mb-2"><small class="text-muted-ne d-block">${esc(fmtDateTime(r.created_at))}</small>${esc(r.response_text)}</div>`).join("") : `<p class="text-muted-ne mb-0" id="noResp">No responses yet. We will update this page as soon as we have news.</p>`}
+      </div>
+      ${back}`;
+    document.getElementById("atts")?.addEventListener("click", async (e) => {
+      const b = e.target.closest("button[data-path]"); if (!b) return;
+      b.disabled = true;
+      const link = await attachmentLink(b.dataset.path);
+      b.disabled = false;
+      if (link) window.open(link, "_blank", "noopener,noreferrer"); else b.textContent = "Unavailable";
+    });
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My Feedback | Nyota Electronics</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+<link href="../assets/css/app.css" rel="stylesheet">
+</head>
+<body class="guard-pending">
+<div id="shell-root"></div>
+<noscript><p class="p-4">JavaScript is required.</p></noscript>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
+<script type="module">
+import { backendProblem } from "../js/supabase-client.js";
+import { requireRole, url } from "../js/auth.js";
+import { mountShell } from "../js/navigation.js";
+import { esc, showAlert } from "../js/validation.js";
+import { listMyFeedback, listUnreadUpdates, markUpdatesRead } from "../js/feedback.js";
+import { TYPE_LABEL, STATUSES, statusBadge, fmtDate } from "../js/dashboard.js";
+
+if (backendProblem()) { document.body.classList.remove("guard-pending"); document.body.textContent = backendProblem(); }
+else {
+  const profile = await requireRole(["customer"]);
+  const main = mountShell(profile, "dashboard");
+  const PAGE = 10;
+  main.innerHTML = `
+    <h1 class="ne-page-title">MY FEEDBACK</h1>
+    <div id="updates"></div>
+    <div id="alert" class="alert d-none" role="alert"></div>
+    <div class="ne-panel">
+      <form class="ne-filters" id="filters" role="search">
+        <input class="form-control" id="q" type="search" placeholder="Search reference or subject..." aria-label="Search reference or subject" maxlength="100" style="min-width:240px">
+        <button class="btn btn-ne py-2" type="submit">Search</button>
+        <span><label for="fType">Type:</label><select class="form-select d-inline-block" id="fType"><option value="">All</option>${Object.entries(TYPE_LABEL).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select></span>
+        <span><label for="fStatus">Status:</label><select class="form-select d-inline-block" id="fStatus"><option value="">All</option>${STATUSES.map((s) => `<option>${s}</option>`).join("")}</select></span>
+      </form>
+      <div class="ne-table-wrap" id="tableWrap"><p class="ne-empty">Loading...</p></div>
+      <div class="ne-pager" id="pager"></div>
+    </div>`;
+  const $ = (id) => document.getElementById(id);
+  let all = [], page = 1;
+
+  const filtered = () => {
+    const q = $("q").value.trim().toLowerCase(), t = $("fType").value, s = $("fStatus").value;
+    return all.filter((r) => (!q || r.reference_number.toLowerCase().includes(q) || r.subject.toLowerCase().includes(q)) && (!t || r.feedback_type === t) && (!s || r.status === s));
+  };
+  const render = () => {
+    const rows = filtered(), pages = Math.max(1, Math.ceil(rows.length / PAGE));
+    page = Math.min(page, pages);
+    if (!all.length) {
+      $("tableWrap").innerHTML = `<div class="ne-empty"><p>You have not submitted any feedback yet.</p><a class="btn btn-ne" href="${esc(url("customer/submit.html"))}">Submit Feedback</a></div>`;
+      $("pager").innerHTML = ""; return;
+    }
+    if (!rows.length) { $("tableWrap").innerHTML = `<p class="ne-empty">No feedback matches your search.</p>`; $("pager").innerHTML = ""; return; }
+    $("tableWrap").innerHTML = `<table class="ne-table"><thead><tr><th>Reference</th><th>Type</th><th>Subject</th><th>Status</th><th>Submitted</th><th>Action</th></tr></thead><tbody>${
+      rows.slice((page - 1) * PAGE, page * PAGE).map((r) => `<tr><td>${esc(r.reference_number)}</td><td>${esc(TYPE_LABEL[r.feedback_type] || r.feedback_type)}</td><td>${esc(r.subject)}</td><td>${statusBadge(r.status)}</td><td>${esc(fmtDate(r.created_at))}</td><td><a class="btn-view" href="${esc(url("customer/details.html?id=" + encodeURIComponent(r.id)))}">View</a></td></tr>`).join("")}</tbody></table>`;
+    $("pager").innerHTML = `<span class="text-muted-ne">${rows.length} item${rows.length === 1 ? "" : "s"}</span>${pages > 1 ? `<span><button class="btn btn-sm btn-ne-secondary" id="prev" ${page === 1 ? "disabled" : ""}>Previous</button> <span class="mx-2">Page ${page} of ${pages}</span> <button class="btn btn-sm btn-ne-secondary" id="next" ${page === pages ? "disabled" : ""}>Next</button></span>` : ""}`;
+    $("prev")?.addEventListener("click", () => { page--; render(); });
+    $("next")?.addEventListener("click", () => { page++; render(); });
+  };
+  $("filters").addEventListener("submit", (e) => { e.preventDefault(); page = 1; render(); });
+  $("fType").addEventListener("change", () => { page = 1; render(); });
+  $("fStatus").addEventListener("change", () => { page = 1; render(); });
+
+  const renderUpdates = (list) => {
+    $("updates").innerHTML = list.length
+      ? `<div class="ne-panel mb-3"><div class="d-flex justify-content-between align-items-center mb-2"><strong>Updates on your feedback</strong><button class="btn btn-sm btn-ne-secondary" id="markAll">Mark all as read</button></div>${
+        list.map((u) => `<div class="ne-update"><span>${esc(u.message)}</span>${u.feedback_id ? `<a href="${esc(url("customer/details.html?id=" + encodeURIComponent(u.feedback_id)))}">View</a>` : ""}</div>`).join("")}</div>`
+      : "";
+    $("markAll")?.addEventListener("click", async () => { if (await markUpdatesRead()) renderUpdates([]); });
+  };
+
+  const [list, updates] = await Promise.all([listMyFeedback(), listUnreadUpdates()]);
+  if (!list.ok) showAlert($("alert"), "We could not load your feedback. Please refresh the page.");
+  all = list.rows; renderUpdates(updates); render();
+}
+</script>
+</body>
+</html>
