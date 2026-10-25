@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Feedback Management | Nyota Electronics</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+<link href="../assets/css/app.css" rel="stylesheet">
+</head>
+<body class="guard-pending">
+<div id="shell-root"></div>
+<noscript><p class="p-4">JavaScript is required.</p></noscript>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
+<script type="module">
+import { backendProblem } from "../js/supabase-client.js";
+import { requireRole } from "../js/auth.js";
+import { mountShell } from "../js/navigation.js";
+import { mountFeedbackManagement } from "../js/dashboard.js";
+
+if (backendProblem()) { document.body.classList.remove("guard-pending"); document.body.textContent = backendProblem(); }
+else {
+  const profile = await requireRole(["manager"]);
+  const main = mountShell(profile, "feedback");
+  await mountFeedbackManagement(main, { detailsPath: "manager/feedback-details.html", title: "ALL FEEDBACK" });
+}
+</script>
+</body>
+</html>
