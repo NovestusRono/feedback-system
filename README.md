@@ -37,7 +37,7 @@ MILESTONE*_REPORT.md  what was built and verified in each milestone
 6. Push to GitHub, enable Pages (Source: GitHub Actions). The workflow refuses to publish if secrets are present or the backend is unconfigured.
 
 ## Testing
-`scripts/run-all-tests.sh` runs everything (needs PostgreSQL, `npm i pg playwright`, Node 22.18+). See [tests/README.md](tests/README.md). Status at Milestone 10: database 229, Edge Function logic 12, UI 85+48+37+48+53+56+79, all passing. These run against a real PostgreSQL with a Supabase stub and a stubbed supabase-js, so [DEPLOYMENT.md](DEPLOYMENT.md) section "Verify on the real project" is still required after you connect your own Supabase project.
+**Try it yourself first: [LOCAL_TESTING.md](LOCAL_TESTING.md).** `scripts/run-all-tests.sh` runs everything (needs PostgreSQL, `npm i pg playwright`, Node 22.18+). See [tests/README.md](tests/README.md). Status at Milestone 10: database 229, Edge Function logic 12, UI 85+48+37+48+53+56+79, all passing. These run against a real PostgreSQL with a Supabase stub and a stubbed supabase-js, so [DEPLOYMENT.md](DEPLOYMENT.md) section "Verify on the real project" is still required after you connect your own Supabase project.
 
 ## Security summary
 See [SECURITY.md](SECURITY.md). In short: Row Level Security is the real enforcement, the service-role key never reaches the frontend, workflow changes only go through audited database functions, attachments are private with 60-second links, and every dynamic value is escaped.
