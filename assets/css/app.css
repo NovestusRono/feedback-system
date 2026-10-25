@@ -39,7 +39,7 @@ a { color: var(--ne-link); }
 /* Buttons */
 .btn-ne { background: var(--ne-amber); color: var(--ne-navy); font-weight: 800; letter-spacing: .02em; border: 0; border-radius: var(--ne-radius); padding: .8rem 1.6rem; text-transform: uppercase; }
 .btn-ne:hover, .btn-ne:focus { background: var(--ne-amber-hover); color: var(--ne-navy); }
-.btn-ne:disabled { opacity: .65; }
+.btn-ne:disabled, .btn-ne.disabled { background: var(--ne-amber); color: var(--ne-navy); opacity: .6; border: 0; }
 .btn-ne:focus-visible, .form-control:focus-visible { outline: 3px solid rgba(59,122,181,.45); outline-offset: 2px; }
 
 /* Login / register card (staff login wireframe 2.2.5) */
@@ -122,6 +122,7 @@ a { color: var(--ne-link); }
 .ne-badge.pending { background: var(--ne-red); } .ne-badge.in-progress { background: var(--ne-amber); } .ne-badge.resolved { background: var(--ne-green); }
 .btn-view { background: var(--ne-amber); color: var(--ne-navy); font-weight: 800; border: 0; border-radius: 6px; padding: .25rem .9rem; text-decoration: none; text-transform: uppercase; font-size: .9rem; display: inline-block; }
 .btn-view:hover { background: var(--ne-amber-hover); color: var(--ne-navy); }
+.btn-ne-secondary:disabled { background: #e4e8f0; color: var(--ne-navy); opacity: .6; border: 0; }
 .btn-ne-secondary { background: #e4e8f0; color: var(--ne-navy); font-weight: 800; border: 0; border-radius: var(--ne-radius); padding: .8rem 1.6rem; text-transform: uppercase; text-decoration: none; display: inline-block; }
 .ne-detail { display: grid; grid-template-columns: max-content 1fr; gap: .5rem 1.5rem; margin: 0 0 1.25rem; }
 .ne-detail dt { color: var(--ne-muted); font-weight: 800; }
