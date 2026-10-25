@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reports | Nyota Electronics</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+<link href="../assets/css/app.css" rel="stylesheet">
+</head>
+<body class="guard-pending">
+<div id="shell-root"></div>
+<noscript><p class="p-4">JavaScript is required.</p></noscript>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.js" integrity="sha384-tgbB5AKnszdcfwcZtTfuhR3Ko1XZdlDfsLtkxiiAZiVkkXCkFmp+FQFh+V/UTo54" crossorigin="anonymous"></script>
+<script type="module">
+import { backendProblem } from "../js/supabase-client.js";
+import { requireRole } from "../js/auth.js";
+import { mountShell } from "../js/navigation.js";
+import { esc, showAlert, setBusy } from "../js/validation.js";
+import { fmtDate, fmtDateTime, stars } from "../js/dashboard.js";
+import { presetRange, validateRange, loadReport, loadReportRows, logReportEvent, buildCsv, downloadCsv } from "../js/reports.js";
+
+if (backendProblem()) { document.body.classList.remove("guard-pending"); document.body.textContent = backendProblem(); }
+else {
+  const profile = await requireRole(["administrator"]);
+  const main = mountShell(profile, "reports");
+  const init = presetRange("monthly");
+  main.innerHTML = `
+    <h1 class="ne-page-title">FEEDBACK REPORTS</h1>
+    <div id="alert" class="alert d-none" role="alert"></div>
+    <div class="ne-panel">
+      <form class="ne-filters ne-report-form" id="form">
+        <span><label for="rType">Report Type:</label><select class="form-select d-inline-block" id="rType">
+          <option value="daily">Daily Report</option><option value="weekly">Weekly Report</option>
+          <option value="monthly" selected>Monthly Report</option><option value="yearly">Yearly Report</option><option value="custom">Custom Range</option></select></span>
+        <span><label for="rFrom">Start Date:</label><input class="form-control d-inline-block" type="date" id="rFrom" value="${init.from}"></span>
+        <span><label for="rTo">End Date:</label><input class="form-control d-inline-block" type="date" id="rTo" value="${init.to}"></span>
+        <button class="btn btn-ne py-2" type="submit" id="gen">GENERATE REPORT</button>
+      </form>
+      <div id="result" class="d-none">
+        <p class="ne-print-only"><strong>Nyota Electronics - Feedback Report</strong></p>
+        <p class="ne-meta" id="period"></p>
+        <div class="ne-cards three" id="cards"></div>
+        <div class="ne-cards" id="cards2"></div>
+        <section class="ne-chart-box mb-3"><h2>Feedback Category Breakdown</h2><div class="ne-bars" id="bars"></div></section>
+        <div class="ne-charts">
+          <section class="ne-chart-box"><h2>Feedback per Day</h2><div class="ne-chart-canvas"><canvas id="trend" role="img" aria-label="Line chart of feedback submitted per day in the selected period"></canvas></div></section>
+          <section class="ne-chart-box"><h2>Ratings</h2><div class="ne-chart-canvas"><canvas id="ratings" role="img" aria-label="Bar chart of how many feedback items received each star rating"></canvas></div></section>
+        </div>
+        <h2 class="ne-section-title">Employee Performance</h2>
+        <div class="ne-table-wrap" id="staff"></div>
+        <div class="ne-report-actions">
+          <button class="btn btn-ne-secondary" id="csv" type="button">EXPORT CSV</button>
+          <button class="btn btn-ne-secondary" id="print" type="button">PRINT REPORT</button>
+        </div>
+      </div>
+    </div>`;
+  const $ = (id) => document.getElementById(id);
+  const card = (n, label, cls = "") => `<div class="ne-card ${cls}"><div class="num">${esc(n)}</div><div class="lbl">${esc(label)}</div></div>`;
+  const charts = [];
+  let current = null;           // the period currently displayed (what CSV/print refer to)
+
+  $("rType").addEventListener("change", () => {
+    const r = presetRange($("rType").value);
+    if (r) { $("rFrom").value = r.from; $("rTo").value = r.to; }
+  });
+  for (const id of ["rFrom", "rTo"]) $(id).addEventListener("change", () => { $("rType").value = "custom"; });
+
+  function draw(rep) {
+    $("period").textContent = `Period: ${fmtDate(rep.from + "T12:00:00+03:00")} to ${fmtDate(rep.to + "T12:00:00+03:00")}`;
+    $("cards").innerHTML = card(rep.total, "Total Feedback") + card(rep.complaints, "Complaints", "red") + card(rep.resolved_complaints, "Resolved Complaints", "green");
+    $("cards2").innerHTML = card(rep.compliments, "Compliments", "green") + card(rep.suggestions, "Suggestions", "amber")
+      + card(rep.avg_rating == null ? "n/a" : `${rep.avg_rating} / 5`, "Avg. Rating")
+      + card(rep.avg_resolution_hours == null ? "n/a" : `${rep.avg_resolution_hours} h`, "Avg. Resolution");
+    const max = Math.max(1, ...rep.by_category.map((c) => c.count));
+    $("bars").innerHTML = rep.by_category.length
+      ? rep.by_category.map((c) => `<div class="ne-bar-row"><span class="name">${esc(c.name)}</span><div class="ne-bar-track" role="presentation"><div class="ne-bar-fill" style="width:${Math.round((c.count / max) * 100)}%"></div></div><span class="val">${esc(c.count)}</span></div>`).join("")
+      : `<p class="ne-empty">No feedback was submitted in this period.</p>`;
+    $("staff").innerHTML = rep.by_employee.length
+      ? `<table class="ne-table"><thead><tr><th>Employee</th><th>Assigned</th><th>Resolved</th><th>Avg. resolution (h)</th></tr></thead><tbody>${rep.by_employee.map((e) => `<tr><td>${esc(e.name)}</td><td>${esc(e.assigned)}</td><td>${esc(e.resolved)}</td><td>${e.avg_hours == null ? "-" : esc(e.avg_hours)}</td></tr>`).join("")}</tbody></table>`
+      : `<p class="ne-empty">No assigned cases in this period.</p>`;
+    charts.splice(0).forEach((c) => c.destroy());
+    if (window.Chart) {
+      const css = getComputedStyle(document.documentElement), c = (v) => css.getPropertyValue(v).trim();
+      charts.push(new Chart($("trend"), { type: "line",
+        data: { labels: rep.trend.map((d) => d.day.slice(5)), datasets: [{ data: rep.trend.map((d) => d.count), borderColor: c("--ne-amber"), backgroundColor: "rgba(232,163,61,.15)", fill: true, tension: .3, pointRadius: rep.trend.length > 45 ? 0 : 3 }] },
+        options: { maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } }, x: { ticks: { maxTicksLimit: 8 } } } } }));
+      charts.push(new Chart($("ratings"), { type: "bar",
+        data: { labels: ["1 star", "2 stars", "3 stars", "4 stars", "5 stars"], datasets: [{ data: rep.rating_distribution, backgroundColor: c("--ne-navy") }] },
+        options: { maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } } }));
+    }
+  }
+
+  $("form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const from = $("rFrom").value, to = $("rTo").value, bad = validateRange(from, to);
+    if (bad) { showAlert($("alert"), bad); return; }
+    showAlert($("alert"), "");
+    setBusy($("gen"), true, "Generating...");
+    const r = await loadReport(from, to);
+    setBusy($("gen"), false);
+    if (!r.ok) { showAlert($("alert"), r.message); $("result").classList.add("d-none"); current = null; return; }
+    current = { from, to };
+    $("result").classList.remove("d-none");
+    draw(r.report);
+    logReportEvent("report_generated", from, to);
+  });
+
+  $("csv").addEventListener("click", async () => {
+    if (!current) return;
+    setBusy($("csv"), true, "Preparing...");
+    const r = await loadReportRows(current.from, current.to);
+    setBusy($("csv"), false);
+    if (!r.ok) { showAlert($("alert"), r.message); return; }
+    downloadCsv(`nyota-feedback-report_${current.from}_to_${current.to}.csv`, buildCsv(r.rows, fmtDateTime));
+    logReportEvent("report_exported", current.from, current.to);
+  });
+  $("print").addEventListener("click", () => { if (!current) return; logReportEvent("report_printed", current.from, current.to); window.print(); });
+
+  $("form").requestSubmit();
+}
+</script>
+</body>
+</html>

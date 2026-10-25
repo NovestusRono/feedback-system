@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>User Management | Nyota Electronics</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+<link href="../assets/css/app.css" rel="stylesheet">
+</head>
+<body class="guard-pending">
+<div id="shell-root"></div>
+<noscript><p class="p-4">JavaScript is required.</p></noscript>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha384-0w2KAL2YHP6wKOkUDzkCDGgVvfmHnj02DHeQ6XcHOgTfFsGyonKOpShMH1x6nk9o" crossorigin="anonymous"></script>
+<script type="module">
+import { backendProblem } from "../js/supabase-client.js";
+import { requireRole } from "../js/auth.js";
+import { mountShell } from "../js/navigation.js";
+import { esc, showAlert, setBusy, setFieldError } from "../js/validation.js";
+import { listUsers, validateNewUser, createStaffUser, setAccountStatus, changeRole, STAFF_ROLE_LABEL, CREATABLE_ROLES } from "../js/user-management.js";
+
+if (backendProblem()) { document.body.classList.remove("guard-pending"); document.body.textContent = backendProblem(); }
+else {
+  const me = await requireRole(["administrator"]);
+  const main = mountShell(me, "users");
+  const PAGE = 10;
+  const state = { search: "", role: "", status: "", page: 1 };
+  let rows = [];
+  main.innerHTML = `
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+      <h1 class="ne-page-title mb-0">USER MANAGEMENT</h1>
+      <button class="btn btn-ne py-2" type="button" id="addBtn">+ ADD USER</button>
+    </div>
+    <div id="alert" class="alert d-none" role="alert"></div>
+    <div id="panel"></div>
+    <div class="ne-panel">
+      <form class="ne-filters" id="filters" role="search">
+        <input class="form-control" id="q" type="search" placeholder="Search name or email..." aria-label="Search users" maxlength="100">
+        <button class="btn btn-ne py-2" type="submit">Search</button>
+        <span><label for="fRole">Role:</label><select class="form-select d-inline-block" id="fRole"><option value="">All</option>${Object.entries(STAFF_ROLE_LABEL).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select></span>
+        <span><label for="fStatus">Status:</label><select class="form-select d-inline-block" id="fStatus"><option value="">All</option><option value="active">Active</option><option value="inactive">Inactive</option></select></span>
+      </form>
+      <div class="ne-table-wrap" id="tableWrap"><p class="ne-empty">Loading...</p></div>
+      <div class="ne-pager" id="pager"></div>
+    </div>`;
+  const $ = (id) => document.getElementById(id);
+  const badge = (s) => `<span class="ne-badge ${s === "active" ? "resolved" : "pending"}">${s === "active" ? "Active" : "Inactive"}</span>`;
+  const fullName = (u) => `${u.first_name || ""} ${u.last_name || ""}`.trim() || u.email;
+  let token = 0;
+
+  async function load() {
+    const mine = ++token;
+    $("tableWrap").innerHTML = `<p class="ne-empty">Loading...</p>`;
+    const r = await listUsers({ ...state, size: PAGE });
+    if (mine !== token) return;
+    if (!r.ok) { showAlert($("alert"), "We could not load the users. Please try again."); $("tableWrap").innerHTML = ""; $("pager").innerHTML = ""; return; }
+    const pages = Math.max(1, Math.ceil(r.total / PAGE));
+    if (!r.rows.length && state.page > 1) { state.page = 1; return load(); }
+    rows = r.rows;
+    if (!rows.length) { $("tableWrap").innerHTML = `<p class="ne-empty">No users match your filters.</p>`; $("pager").innerHTML = ""; return; }
+    $("tableWrap").innerHTML = `<table class="ne-table"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Action</th></tr></thead><tbody>${
+      rows.map((u) => `<tr><td>${esc(fullName(u))}${u.id === me.id ? ' <span class="ne-note">(you)</span>' : ""}</td><td>${esc(u.email)}</td><td>${esc(STAFF_ROLE_LABEL[u.role] || u.role)}</td><td>${badge(u.account_status)}</td><td><button type="button" class="btn-view border-0" data-edit="${esc(u.id)}">Edit</button></td></tr>`).join("")}</tbody></table>`;
+    $("pager").innerHTML = `<span class="text-muted-ne">${r.total} user${r.total === 1 ? "" : "s"}</span>${pages > 1 ? `<span><button class="btn btn-sm btn-ne-secondary" id="prev" ${state.page === 1 ? "disabled" : ""}>Previous</button> <span class="mx-2">Page ${state.page} of ${pages}</span> <button class="btn btn-sm btn-ne-secondary" id="next" ${state.page === pages ? "disabled" : ""}>Next</button></span>` : ""}`;
+    $("prev")?.addEventListener("click", () => { state.page--; load(); });
+    $("next")?.addEventListener("click", () => { state.page++; load(); });
+    main.querySelectorAll("[data-edit]").forEach((b) => b.addEventListener("click", () => openEdit(rows.find((u) => u.id === b.dataset.edit))));
+  }
+
+  function openAdd() {
+    showAlert($("alert"), "");
+    $("panel").innerHTML = `<form class="ne-form-panel" id="addForm" novalidate>
+      <h2>Add Staff Account</h2>
+      <p class="ne-note">Customers register themselves. The temporary password is shown to you once; share it securely and ask the user to change it.</p>
+      <div class="row g-3">
+        <div class="col-md-6"><label class="form-label" for="aFirst">First name</label><input class="form-control" id="aFirst" maxlength="60" autocomplete="off"></div>
+        <div class="col-md-6"><label class="form-label" for="aLast">Last name</label><input class="form-control" id="aLast" maxlength="60" autocomplete="off"></div>
+        <div class="col-md-6"><label class="form-label" for="aEmail">Work email</label><input class="form-control" id="aEmail" type="email" maxlength="254" autocomplete="off"></div>
+        <div class="col-md-6"><label class="form-label" for="aPhone">Phone (optional)</label><input class="form-control" id="aPhone" maxlength="25" autocomplete="off"></div>
+        <div class="col-md-6"><label class="form-label" for="aRole">Role</label><select class="form-select" id="aRole">${CREATABLE_ROLES.map((r) => `<option value="${r}">${STAFF_ROLE_LABEL[r]}</option>`).join("")}</select></div>
+        <div class="col-md-6"><label class="form-label" for="aPass">Temporary password</label><input class="form-control" id="aPass" type="password" maxlength="72" autocomplete="new-password"></div>
+      </div>
+      <div class="mt-3 d-flex gap-2"><button class="btn btn-ne py-2" type="submit" id="aSave">Create account</button><button class="btn btn-ne-secondary" type="button" id="aCancel">Cancel</button></div>
+    </form>`;
+    $("aCancel").addEventListener("click", () => { $("panel").innerHTML = ""; });
+    $("addForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const f = { first_name: $("aFirst").value, last_name: $("aLast").value, email: $("aEmail").value, phone: $("aPhone").value, role: $("aRole").value, temporary_password: $("aPass").value };
+      const errs = validateNewUser(f);
+      const map = { first_name: "aFirst", last_name: "aLast", email: "aEmail", phone: "aPhone", role: "aRole", temporary_password: "aPass" };
+      for (const [k, id] of Object.entries(map)) setFieldError($(id), errs[k] || "");
+      if (Object.keys(errs).length) return;
+      setBusy($("aSave"), true, "Creating...");
+      const r = await createStaffUser(f);
+      setBusy($("aSave"), false);
+      if (!r.ok) { showAlert($("alert"), r.message); return; }
+      $("panel").innerHTML = "";
+      showAlert($("alert"), `Account created for ${f.email.trim()}. Share the temporary password securely.`, "success");
+      state.page = 1; load();
+    });
+    $("aFirst").focus();
+  }
+
+  function openEdit(u) {
+    if (!u) return;
+    showAlert($("alert"), "");
+    const self = u.id === me.id, isStaff = u.role !== "customer";
+    const next = u.account_status === "active" ? "inactive" : "active";
+    $("panel").innerHTML = `<form class="ne-form-panel" id="editForm" novalidate>
+      <h2>Edit User</h2>
+      <p class="mb-2"><strong>${esc(fullName(u))}</strong><br><span class="ne-meta">${esc(u.email)}${u.phone ? " &middot; " + esc(u.phone) : ""}</span></p>
+      ${self ? `<p class="ne-note">This is your own account. You cannot change your own role or status.</p>` : ""}
+      <div class="row g-3 align-items-end">
+        <div class="col-md-5"><label class="form-label" for="eRole">Role</label>
+          <select class="form-select" id="eRole" ${self || !isStaff ? "disabled" : ""}>${(isStaff ? CREATABLE_ROLES : ["customer"]).map((r) => `<option value="${r}" ${r === u.role ? "selected" : ""}>${STAFF_ROLE_LABEL[r]}</option>`).join("")}</select></div>
+        <div class="col-md-7 d-flex flex-wrap gap-2">
+          <button class="btn btn-ne py-2" type="submit" id="eSave" ${self || !isStaff ? "disabled" : ""}>Save role</button>
+          <button class="btn ${next === "inactive" ? "btn-ne-secondary" : "btn-ne"} py-2" type="button" id="eToggle" ${self ? "disabled" : ""}>${next === "inactive" ? "Deactivate account" : "Activate account"}</button>
+          <button class="btn btn-ne-secondary" type="button" id="eClose">Close</button></div>
+      </div>
+      ${!isStaff ? `<p class="ne-note mt-2">Customer accounts keep the Customer role. You can deactivate or reactivate them.</p>` : ""}
+    </form>`;
+    $("eClose").addEventListener("click", () => { $("panel").innerHTML = ""; });
+    $("editForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if ($("eRole").value === u.role) { showAlert($("alert"), "The role is unchanged.", "info"); return; }
+      if (!confirm(`Change ${fullName(u)} from ${STAFF_ROLE_LABEL[u.role]} to ${STAFF_ROLE_LABEL[$("eRole").value]}?`)) return;
+      setBusy($("eSave"), true, "Saving...");
+      const r = await changeRole(u.id, $("eRole").value);
+      setBusy($("eSave"), false);
+      if (!r.ok) { showAlert($("alert"), r.message); return; }
+      $("panel").innerHTML = ""; showAlert($("alert"), "Role updated.", "success"); load();
+    });
+    $("eToggle").addEventListener("click", async () => {
+      if (!confirm(`${next === "inactive" ? "Deactivate" : "Activate"} the account of ${fullName(u)}?`)) return;
+      setBusy($("eToggle"), true, "Working...");
+      const r = await setAccountStatus(u.id, next);
+      setBusy($("eToggle"), false);
+      if (!r.ok) { showAlert($("alert"), r.message); return; }
+      $("panel").innerHTML = ""; showAlert($("alert"), next === "inactive" ? "Account deactivated. The user can no longer sign in." : "Account activated.", "success"); load();
+    });
+  }
+
+  $("addBtn").addEventListener("click", openAdd);
+  const apply = () => { state.search = $("q").value; state.role = $("fRole").value; state.status = $("fStatus").value; state.page = 1; load(); };
+  $("filters").addEventListener("submit", (e) => { e.preventDefault(); apply(); });
+  $("fRole").addEventListener("change", apply);
+  $("fStatus").addEventListener("change", apply);
+  await load();
+}
+</script>
+</body>
+</html>
