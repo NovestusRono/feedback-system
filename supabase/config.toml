@@ -1,0 +1,7 @@
+# Supabase CLI config (only the parts this project needs).
+# Edge Functions verify the caller themselves (admin check), so keep JWT verification on.
+[functions.create-staff-user]
+verify_jwt = true
+
+[functions.set-account-status]
+verify_jwt = true
