@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Anonymous Feedback | Nyota Electronics</title>
+<link href="../assets/vendor/bootstrap.min.css" rel="stylesheet">
+<link href="../assets/css/app.css" rel="stylesheet">
+</head>
+<body>
+<div class="ne-public">
+  <header class="ne-header">
+    <a class="ne-brand" href="../index.html">NYOTA ELECTRONICS</a>
+    <nav aria-label="Main"><a href="../index.html">Home</a><a href="login.html">Log in</a></nav>
+  </header>
+  <main class="py-4 px-2" id="content">
+    <div class="ne-form-card"><p class="ne-empty">Loading...</p></div>
+  </main>
+  <footer class="ne-footer">
+    &copy; 2026 Nyota Electronics<br>
+    <a href="login.html">Customer login</a> | <a href="../staff/login.html">Staff login</a>
+  </footer>
+</div>
+<noscript><p class="p-4">JavaScript is required.</p></noscript>
+<script src="../assets/vendor/supabase.js"></script>
+<script type="module">
+import { backendProblem } from "../js/supabase-client.js";
+import { url } from "../js/auth.js";
+import { esc, showAlert, setBusy, setFieldError } from "../js/validation.js";
+import { loadAnonymousOptions, validateAnonymous, submitAnonymous } from "../js/anonymous.js";
+
+const main = document.getElementById("content");
+if (backendProblem()) { main.innerHTML = `<div class="ne-form-card"><p>${esc(backendProblem())}</p></div>`; }
+else {
+  const opts = await loadAnonymousOptions();
+  if (!opts.enabled) {
+    main.innerHTML = `<div class="ne-form-card text-center"><h1>ANONYMOUS FEEDBACK</h1><p class="text-muted-ne">Anonymous feedback is currently unavailable. You can still
+      <a href="${esc(url("customer/login.html?next=customer%2Fsubmit.html"))}">log in to submit feedback</a>.</p></div>`;
+  } else {
+    main.innerHTML = `
+  <div class="ne-form-card">
+    <h1>SUBMIT ANONYMOUS FEEDBACK</h1>
+    <div class="ne-notice mb-4" role="note">
+      <strong>How anonymous feedback works</strong>
+      <ul class="mb-0 mt-1">
+        <li>You do not need an account. We do not record your name, email or IP address.</li>
+        <li>Our staff will read it, and it appears to them as "Anonymous User".</li>
+        <li>Because we cannot identify you, we cannot reply, and you cannot track it later. You will be shown a reference number.</li>
+        <li>Please do not put personal details (your name, phone number or order number) in your message if you want to stay anonymous.</li>
+        <li>Want a reply? <a href="${esc(url("customer/login.html?next=customer%2Fsubmit.html"))}">Log in or register</a> instead.</li>
+      </ul>
+    </div>
+    <div id="alert" class="alert d-none" role="alert"></div>
+    <form id="form" novalidate>
+      <div style="position:absolute;left:-9999px" aria-hidden="true"><label>Website <input id="website" name="website" tabindex="-1" autocomplete="off"></label></div>
+      <fieldset class="mb-4"><legend>Feedback Type</legend>
+        <div class="ne-radios">
+          <div class="form-check"><input class="form-check-input" type="radio" name="type" id="t-complaint" value="complaint" checked><label class="form-check-label" for="t-complaint">Complaint</label></div>
+          <div class="form-check"><input class="form-check-input" type="radio" name="type" id="t-compliment" value="compliment"><label class="form-check-label" for="t-compliment">Compliment</label></div>
+          <div class="form-check"><input class="form-check-input" type="radio" name="type" id="t-suggestion" value="suggestion"><label class="form-check-label" for="t-suggestion">Suggestion</label></div>
+        </div>
+      </fieldset>
+      <div class="mb-4"><label class="form-label" for="subject">Subject</label>
+        <input class="form-control" id="subject" maxlength="150" placeholder="Brief title of your feedback" required></div>
+      <div class="mb-4"><label class="form-label" for="description">Description</label>
+        <textarea class="form-control" id="description" rows="6" maxlength="4000" placeholder="Describe your experience in detail..." required></textarea>
+        <div class="ne-counter"><span id="count">0</span> / 4000</div></div>
+      <fieldset class="mb-4" id="ratingBox"><legend>How would you rate our service?</legend>
+        <div class="ne-stars" id="stars">
+          ${[5, 4, 3, 2, 1].map((n) => `<input type="radio" name="rating" id="r${n}" value="${n}"><label for="r${n}" title="${n} out of 5" aria-label="${n} out of 5">&#9733;</label>`).join("")}
+        </div>
+        <div class="invalid-feedback d-block" id="ratingErr"></div>
+      </fieldset>
+      <div class="row g-3 mb-4">
+        ${opts.categories.length ? `<div class="col-md-6"><label class="form-label" for="category">Product / service category <span class="text-muted-ne fw-normal">(optional)</span></label>
+          <select class="form-select" id="category"><option value="">Select a category</option>${opts.categories.map((c) => `<option>${esc(c)}</option>`).join("")}</select></div>` : ""}
+        <div class="col-md-6"><label class="form-label" for="productName">Product name <span class="text-muted-ne fw-normal">(optional)</span></label>
+          <input class="form-control" id="productName" maxlength="150"></div>
+      </div>
+      <div class="text-center"><button class="btn btn-ne px-5" id="submit" type="submit">Submit Anonymously</button></div>
+    </form>
+  </div>`;
+    const $ = (id) => document.getElementById(id);
+    $("description").addEventListener("input", () => { $("count").textContent = $("description").value.length; });
+    $("form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const f = { type: document.querySelector("input[name=type]:checked")?.value, subject: $("subject").value, description: $("description").value,
+        rating: document.querySelector("input[name=rating]:checked")?.value, category: $("category")?.value || "", productName: $("productName").value, purchaseRef: "" };
+      const errs = validateAnonymous(f);
+      setFieldError($("subject"), errs.subject); setFieldError($("description"), errs.description); setFieldError($("productName"), errs.productName);
+      $("ratingErr").textContent = errs.rating || "";
+      if (Object.keys(errs).length) { showAlert($("alert"), "Please fix the highlighted fields."); return; }
+      showAlert($("alert"), ""); setBusy($("submit"), true, "Submitting...");
+      const r = await submitAnonymous(f, $("website").value);
+      if (!r.ok) { setBusy($("submit"), false); showAlert($("alert"), r.message); return; }
+      // The reference is shown once, here. It is not put in the URL or stored in the browser.
+      main.innerHTML = `<div class="ne-form-card text-center">
+        <div class="ne-success-circle" aria-hidden="true">&#10003;</div>
+        <h1 class="mb-2">Thank You</h1>
+        <p class="text-muted-ne fs-5 mb-2">Your anonymous feedback was submitted. Reference number:</p>
+        <div class="ne-ref" id="ref">${esc(r.reference)}</div>
+        <p class="text-muted-ne mt-4">We cannot identify you, so we cannot reply or let you track this feedback.</p>
+        <a class="btn btn-ne mt-2" href="${esc(url("index.html"))}">Return Home</a>
+      </div>`;
+      window.scrollTo(0, 0);
+    });
+  }
+}
+</script>
+</body>
+</html>

@@ -3,7 +3,7 @@
 ## Setup
 1. Create a Supabase project. Auth > Providers: enable Email. (Optionally require email confirmation.)
 2. Apply the migrations in order (SQL Editor, or `supabase db push`):
-   `20261024000100_core_schema.sql` → `…0200_helpers_and_triggers.sql` → `…0300_workflow_functions.sql` → `…0400_rls_policies.sql` → `…0500_storage.sql` → `…0600_staff_overview.sql` → `…0700` (list_feedback assignment filter) → `…0800_admin_reports_users_audit.sql`
+   `20261024000100_core_schema.sql` → `…0200_helpers_and_triggers.sql` → `…0300_workflow_functions.sql` → `…0400_rls_policies.sql` → `…0500_storage.sql` → `…0600_staff_overview.sql` → `…0700` (list_feedback assignment filter) → `…0800_admin_reports_users_audit.sql` → `…0900_anonymous_feedback.sql`
 3. Copy the project URL and **anon** key into the frontend config (see `/.env.example`). Never use the service-role key in the frontend.
 4. Create the first administrator: sign up normally (or Auth > Users > Add user), then in the SQL Editor:
    ```sql
@@ -76,3 +76,13 @@ supabase functions deploy set-account-status
 
 Calling from the app (Milestone 9 adds the screens): `sb.functions.invoke("create-staff-user", { body: { email, first_name, last_name, phone, role, temporary_password } })`.
 Until then an administrator can call it with curl using their own access token.
+
+## Anonymous feedback (migration 9)
+Visitors can submit feedback without registering or logging in (`customer/anonymous.html`).
+- `feedback.is_anonymous` is true exactly when `customer_id` is null (CHECK constraint). The row stores no IP address, user agent, email or account, so the sender can never be identified, tracked or answered.
+- The only way to create such a row is `submit_anonymous_feedback(type, subject, description, rating, category, product_name, purchase_reference, website)` (SECURITY DEFINER, `search_path=''`, executable by `anon` and `authenticated`; staff are refused). It validates everything on the server, discards submissions whose honeypot field `website` is filled (returning a fake reference), refuses an identical resubmission within 2 minutes, and enforces `anonymous_max_per_hour` (default 30, across all visitors). A logged-in customer who uses it is **not** linked to the row.
+- `anonymous_form_options()` (executable by `anon`) returns only `{enabled, categories}`.
+- Administrators can switch the form off: `update public.system_settings set value='false'::jsonb where key='anonymous_feedback_enabled';` and change the hourly cap with `anonymous_max_per_hour`.
+- Staff lists, details, reports and CSV show the customer as **Anonymous User** with no contact data. The normal workflow (assign, start, reply, resolve) works; nobody is notified because there is nobody to notify.
+- Not offered to anonymous visitors: attachments, "who served you" (it would expose staff names publicly), purchase/receipt number and a response method.
+- Trade-off: a global hourly cap stops floods but a determined attacker could use it up and block honest visitors for the hour. A CAPTCHA in front of the form is the stronger fix if abuse appears; the switch above is the emergency stop.

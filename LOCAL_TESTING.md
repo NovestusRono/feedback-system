@@ -4,7 +4,7 @@ You need: Node 18+ (for the tiny web server) and a Supabase project. The quickes
 
 ## 1. Create the test backend (10 minutes)
 1. supabase.com -> New project `nyota-dev`. Save the database password.
-2. **SQL Editor**: open each file in `supabase/migrations/` **in filename order** (`...0100` to `...0800`), paste, Run. Each must finish with "Success". Stop and tell me if one errors.
+2. **SQL Editor**: open each file in `supabase/migrations/` **in filename order** (`...0100` to `...0900`), paste, Run. Each must finish with "Success". Stop and tell me if one errors.
 3. **Authentication -> Providers -> Email**: turn **Confirm email OFF** for local testing (so you don't need real inboxes). Turn it back on for production.
 4. **Authentication -> URL Configuration**: Site URL `http://localhost:8080`; add `http://localhost:8080/**` to Redirect URLs.
 5. **Project Settings -> API**: copy the **Project URL** and the **anon public** key.

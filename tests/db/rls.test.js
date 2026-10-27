@@ -590,6 +590,117 @@ async function setup() {
   r = await run(null, "select count(*)::int n from public.audit_logs where metadata::text ~* '(password|token|secret)'");
   check("no audit entry contains passwords, tokens or secrets", r.rows[0].n === 0);
 
+  // -------------------------------------------------------------- anonymous feedback (migration 9)
+  console.log("\nAnonymous feedback");
+  const ANON = "select public.submit_anonymous_feedback($1,$2,$3,$4,$5,$6,$7,$8) ref";
+  const pick = (o, k, d) => (k in o ? o[k] : d);
+  const args = (o = {}) => [pick(o, "type", "complaint"), pick(o, "subject", "Rude service"), pick(o, "desc", "The cashier ignored me for ten minutes."), pick(o, "rating", 2), pick(o, "cat", "Customer Service"), pick(o, "prod", null), pick(o, "ref", null), pick(o, "web", null)];
+  const before = (await run(null, "select count(*)::int n from public.feedback")).rows[0].n;
+  r = await run(anon, ANON, args());
+  const aRef = r.rows?.[0]?.ref;
+  check("a visitor who is not logged in can submit and gets a reference number", r.ok && /^NYO-\d{8}-[0-9A-F]{8}$/.test(aRef), r.error);
+  r = await run(null, "select * from public.feedback where reference_number=$1", [aRef]);
+  const A = r.rows[0];
+  check("stored as anonymous: no customer, status Pending, rating and type kept", A && A.is_anonymous === true && A.customer_id === null && A.status === "Pending" && A.service_rating === 2 && A.feedback_type === "complaint" && A.preferred_response_method === null);
+  r = await run(null, "select * from public.feedback_status_history where feedback_id=$1", [A.id]);
+  check("first history row exists with no user and an anonymous note", r.rowCount === 1 && r.rows[0].changed_by === null && /anonymous/i.test(r.rows[0].change_note));
+  check("nothing identifying is stored on the row", !Object.keys(A).some((k) => /^(ip|ip_address|user_agent|email|phone|session|session_id|user_id)$/i.test(k)), Object.keys(A).join());
+
+  r = await run(anon, "insert into public.feedback (is_anonymous, feedback_type, subject, description, service_rating) values (true,'complaint','direct','direct insert try',3)");
+  check("anonymous visitors cannot insert into the table directly", !r.ok, r.error);
+  r = await run(anon, "select count(*) from public.feedback");
+  check("anonymous visitors cannot read feedback", !r.ok || Number(r.rows[0].count) === 0, r.error);
+  r = await run(as("cust1"), "insert into public.feedback (is_anonymous, feedback_type, subject, description, service_rating) values (true,'complaint','sneaky','customer posing as anonymous',3)");
+  check("a logged-in customer cannot insert an anonymous row directly", !r.ok && /anonymous form|row-level/i.test(r.error), r.error);
+
+  r = await run(as("cust1"), ANON, args({ subject: "Logged in but anonymous", desc: "I am logged in yet want this anonymous." }));
+  const cRef = r.rows?.[0]?.ref;
+  check("a logged-in customer may use the anonymous form", r.ok, r.error);
+  r = await run(null, "select customer_id, is_anonymous from public.feedback where reference_number=$1", [cRef]);
+  check("...and it is NOT linked to their account", r.rows[0].customer_id === null && r.rows[0].is_anonymous === true);
+  r = await run(as("cust1"), "select reference_number from public.feedback where reference_number in ($1,$2)", [aRef, cRef]);
+  check("customers cannot see anonymous feedback, not even their own anonymous one", r.ok && r.rowCount === 0, JSON.stringify(r.rows));
+  for (const who of ["admin", "manager", "emp1"]) {
+    r = await run(as(who), ANON, args({ subject: "Staff attempt", desc: "Staff should not submit feedback at all." }));
+    check(`${who} cannot submit feedback anonymously`, !r.ok && /Staff accounts/i.test(r.error), r.error);
+  }
+
+  const bad = [[{ type: "rant" }, "bad type"], [{ type: null }, "missing type"], [{ subject: "ab" }, "short subject"], [{ subject: "x".repeat(151) }, "long subject"],
+    [{ desc: "too short" }, "short description"], [{ desc: "y".repeat(4001) }, "long description"], [{ rating: 0 }, "rating 0"], [{ rating: 6 }, "rating 6"], [{ rating: null }, "no rating"],
+    [{ cat: "c".repeat(81) }, "long category"], [{ prod: "p".repeat(151) }, "long product"], [{ ref: "r".repeat(101) }, "long reference"]];
+  for (const [o, why] of bad) {
+    r = await run(anon, ANON, args(o));
+    check(`invalid input refused: ${why}`, !r.ok && /22023/.test(r.code || ""), r.error);
+  }
+  r = await run(anon, ANON, args({ subject: "Bot", desc: "I am a bot filling in everything.", web: "http://spam.example" }));
+  check("honeypot: bots get a reference but nothing is stored", r.ok && /^NYO-/.test(r.rows[0].ref) && (await run(null, "select count(*)::int n from public.feedback where reference_number=$1", [r.rows[0].ref])).rows[0].n === 0);
+  r = await run(anon, ANON, args());
+  check("an identical resubmission within 2 minutes is refused", !r.ok && /already submitted/i.test(r.error), r.error);
+  r = await run(anon, ANON, args({ subject: "  Padded subject  ", desc: "  Padded description with spaces.  ", cat: "", prod: "  " }));
+  r = await run(null, "select subject, description, product_service_category, product_name from public.feedback where reference_number=$1", [r.rows[0].ref]);
+  check("text is trimmed and blank optional fields become null", r.rows[0].subject === "Padded subject" && r.rows[0].description === "Padded description with spaces." && r.rows[0].product_service_category === null && r.rows[0].product_name === null);
+
+  // flood cap + admin switch
+  await run(null, "update public.system_settings set value=to_jsonb(2) where key='anonymous_max_per_hour'");
+  r = await run(anon, ANON, args({ subject: "Over the cap", desc: "This one should hit the hourly cap." }));
+  check("hourly cap refuses further submissions", !r.ok && /Too many/i.test(r.error) && r.code === "54000", r.error);
+  await run(null, "update public.system_settings set value=to_jsonb(30) where key='anonymous_max_per_hour'");
+  await run(null, "update public.system_settings set value='false'::jsonb where key='anonymous_feedback_enabled'");
+  r = await run(anon, ANON, args({ subject: "Switch off", desc: "Anonymous feedback is switched off now." }));
+  check("administrator switch turns the form off on the server", !r.ok && /switched off/i.test(r.error), r.error);
+  r = await run(anon, "select public.anonymous_form_options() o");
+  check("form options report enabled=false", r.ok && r.rows[0].o.enabled === false);
+  await run(null, "update public.system_settings set value='true'::jsonb where key='anonymous_feedback_enabled'");
+  r = await run(anon, "select public.anonymous_form_options() o");
+  check("form options expose only the switch and the category list", r.ok && r.rows[0].o.enabled === true && Array.isArray(r.rows[0].o.categories) && Object.keys(r.rows[0].o).sort().join() === "categories,enabled");
+
+  // what staff see
+  r = await run(as("admin"), "select * from public.list_feedback($1,null,null,50,0,null)", ["anonymous"]);
+  check("admin list shows the customer as 'Anonymous User' and search finds it", r.ok && r.rowCount >= 2 && r.rows.every((x) => x.customer_name === "Anonymous User"), r.error + JSON.stringify(r.rows.slice(0, 1)));
+  r = await run(as("manager"), "select * from public.list_feedback($1,null,null,50,0,'unassigned')", [aRef]);
+  check("manager list shows it as unassigned from 'Anonymous User'", r.rowCount === 1 && r.rows[0].customer_name === "Anonymous User");
+  r = await run(as("admin"), "select * from public.list_feedback(null,null,null,100,0,null)");
+  check("normal customers still show their real names", r.rows.some((x) => x.customer_name !== "Anonymous User" && x.customer_name.length > 3) && Number(r.rows[0].total_count) >= before + 3);
+  r = await run(as("admin"), "select * from public.report_rows($1,$2)", [from, to]);
+  check("CSV rows carry 'Anonymous User' with no contact data", r.ok && r.rows.filter((x) => x.customer_name === "Anonymous User").length >= 3);
+  r = await run(as("admin"), "select public.dashboard_stats() s");
+  check("dashboard counts include anonymous feedback", r.ok && r.rows[0].s.total >= before + 3, r.error);
+  r = await run(as("admin"), "select public.report_summary($1,$2) s", [from, to]);
+  check("reports count anonymous feedback", r.ok && r.rows[0].s.total >= before + 3);
+  r = await run(as("admin"), "select id from public.feedback where id=$1", [A.id]);
+  check("administrator can open the anonymous case", r.rowCount === 1);
+  r = await run(as("emp1"), "select id from public.feedback where id=$1", [A.id]);
+  check("an unassigned employee cannot see it", r.rowCount === 0);
+
+  // the whole workflow works with nobody to notify
+  r = await run(as("manager"), "select public.assign_feedback($1,$2,'please look')", [A.id, U.emp1]);
+  check("manager can assign an anonymous case", r.ok, r.error);
+  r = await run(as("emp1"), "select id, customer_id, is_anonymous from public.feedback where id=$1", [A.id]);
+  check("the assigned employee sees it, with no customer behind it", r.rowCount === 1 && r.rows[0].customer_id === null);
+  r = await run(as("emp1"), "select count(*)::int n from public.profiles where id <> $1 and role='customer'", [U.emp1]);
+  check("the employee is not shown any customer profile for it", r.ok);
+  r = await run(as("emp1"), "select public.start_feedback($1,null)", [A.id]);
+  check("employee can start it", r.ok, r.error);
+  r = await run(as("emp1"), "select public.add_feedback_response($1,'We are looking into it.','customer')", [A.id]);
+  check("employee can add a reply (nobody is notified)", r.ok, r.error);
+  r = await run(as("emp1"), "select public.resolve_feedback($1,'Spoke to the cashier and retrained the team.','Thank you, we have acted.',null)", [A.id]);
+  check("employee can resolve it", r.ok, r.error);
+  r = await run(null, "select status from public.feedback where id=$1", [A.id]);
+  check("status is Resolved", r.rows[0].status === "Resolved");
+  r = await run(null, "select count(*)::int n from public.notifications n join public.profiles p on p.id = n.user_id where n.feedback_id=$1 and p.role = 'customer'", [A.id]);
+  check("no customer was notified about the anonymous case", r.rows[0].n === 0);
+  r = await run(null, "update public.feedback set is_anonymous=false where id=$1", [A.id]);
+  check("an anonymous case can never be turned into a customer case", !r.ok, r.error);
+  r = await run(null, "update public.feedback set customer_id=$2 where id=$1", [A.id, U.cust1]);
+  check("...nor be attached to a customer afterwards", !r.ok, r.error);
+
+  r = await run(anon, "select * from public.list_feedback(null,null,null,10,0,null)");
+  check("anonymous visitors cannot list feedback", !r.ok, r.error);
+  r = await run(anon, "select public.report_summary('2026-01-01','2026-01-31')");
+  check("anonymous visitors cannot read reports", !r.ok, r.error);
+  r = await run(anon, "select * from public.list_servable_employees()");
+  check("staff names are not offered to anonymous visitors", !r.ok, r.error);
+
   // -------------------------------------------------------------- hygiene
   console.log("\nHygiene");
   r = await run(null, `select count(*)::int n from pg_class c join pg_namespace n on n.oid=c.relnamespace
@@ -601,7 +712,7 @@ async function setup() {
   check("every SECURITY DEFINER function pins search_path", r.rowCount === 0, r.rows.map((x) => x.proname).join());
   r = await run(null, `select p.proname from pg_proc p join pg_namespace n on n.oid=p.pronamespace
                        where n.nspname='public' and has_function_privilege('anon', p.oid, 'execute')`);
-  check("anon can execute no public function", r.rowCount === 0, r.rows.map((x) => x.proname).join());
+  check("anon can execute only the two anonymous-form functions", r.rows.map((x) => x.proname).sort().join() === "anonymous_form_options,submit_anonymous_feedback", r.rows.map((x) => x.proname).join());
   r = await run(null, `select p.proname from pg_proc p join pg_namespace n on n.oid=p.pronamespace
                        where n.nspname='public' and p.proname in ('log_audit','notify_user','generate_reference_number','setting_int')
                          and has_function_privilege('authenticated', p.oid, 'execute')`);

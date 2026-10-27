@@ -8,6 +8,7 @@ Web-based system where customers submit complaints, compliments and suggestions,
 | Role | Can do |
 |---|---|
 | Customer | Register, log in, submit feedback with a 1-5 rating and attachments, track **only their own** feedback and the replies meant for them |
+| Anonymous visitor | Submit feedback without registering or logging in (`customer/anonymous.html`). Staff see it as "Anonymous User"; the sender cannot track it or be answered |
 | Manager | See all feedback, assign and reassign it to employees |
 | Employee | See **only cases assigned to them**, start work, reply, resolve with details |
 | Administrator | Dashboard, all feedback (read-only), reports and CSV export, user management, audit logs |

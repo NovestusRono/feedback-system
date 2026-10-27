@@ -16,9 +16,11 @@
 | Supply chain | Bootstrap 5.3.3, supabase-js 2.45.4 and Chart.js 4.4.3 are self-hosted in `assets/vendor/` (exact npm files, licences included); no third-party scripts load at runtime | gate |
 | Report data exposure | Reports admin-only; CSV carries names only | db + UI tests |
 | Account enumeration | Password reset always reports success; generic login errors | auth UI tests |
+| Anonymous submissions | One narrow `anon`-callable function; no direct table access; server-side validation, honeypot, duplicate guard, hourly cap and an administrator off-switch; nothing identifying is stored (no IP, no account); a logged-in customer is deliberately not linked; staff see only "Anonymous User" | db (60 checks) + anonymous UI tests |
 | Audit trail | Role/status changes, assignments, responses, resolutions, settings, report events; metadata whitelisted, no secrets | db tests |
 
 ## Known limits (be honest in the report)
+- Anonymous feedback is open to the internet by design. The hourly cap and honeypot reduce abuse but are not a CAPTCHA; a determined spammer can exhaust the cap. Use the off-switch (`anonymous_feedback_enabled`) in an emergency.
 - The browser guards (`requireRole`) only hide pages; the database enforces access. A user who edits the JavaScript still gets nothing the policies deny.
 - GitHub Pages cannot set HTTP headers, so there is no Content-Security-Policy, `X-Frame-Options` or HSTS from the site itself. GitHub serves HTTPS; clickjacking protection would need a different host or a proxy.
 - Tests ran against PostgreSQL 16 with a **stub** of Supabase's `auth` and `storage` schemas and a stubbed supabase-js. Real-project verification is the checklist in `DEPLOYMENT.md`.

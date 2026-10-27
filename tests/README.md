@@ -18,4 +18,5 @@ Final real-project verification with four test accounts happens in Milestone 10.
 `node tests/ui/admin.test.js` covers the administrator dashboard, feedback management and details.
 `node tests/ui/manager.test.js` covers the manager dashboard, lists, assignment queue and assign/reassign.
 `node tests/ui/employee.test.js` covers the employee dashboard, assigned list, start, respond and resolve.
+`node tests/ui/anonymous.test.js` covers the anonymous form (no login, honeypot, error mapping, switch-off) and how staff see anonymous cases.
 `node tests/ui/admin-m9.test.js` covers reports (presets, validation, charts, CSV export and formula guard, print), user management (filters, add, edit role, activate/deactivate, self-protection) and audit logs.

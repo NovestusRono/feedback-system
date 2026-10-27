@@ -2,7 +2,7 @@
 
 ## 1. Supabase project
 1. https://supabase.com -> New project. Note the **Project URL** and the **anon public key** (Project Settings -> API). Never copy the `service_role` key anywhere except Supabase secrets.
-2. SQL Editor: run each file in `supabase/migrations/` **in filename order** (0100 ... 0800). Or `supabase link` then `supabase db push`.
+2. SQL Editor: run each file in `supabase/migrations/` **in filename order** (0100 ... 0900). Or `supabase link` then `supabase db push`.
 3. Create the first administrator: register a normal account in the app (customer portal), confirm the email, then in the SQL Editor:
    ```sql
    update public.profiles set role = 'administrator' where email = 'you@example.com';
@@ -36,6 +36,7 @@ Repository Settings -> Pages -> Source: **GitHub Actions**. The workflow `.githu
 ## 5. Verify on the real project (checklist; this is the one thing the automated tests cannot do)
 Create four accounts (customer by registering; manager, employee, second administrator by Users -> + ADD USER) and tick each:
 - [ ] Customer registers, confirms email, logs in, submits feedback with a PNG and a PDF; reference `NYO-...` shown.
+- [ ] Log out, open the home page, click **Submit Anonymously**, submit (no login). The administrator and manager see it as "Anonymous User"; the customer account does not see it.
 - [ ] Customer sees only their own feedback (use a second customer to confirm).
 - [ ] Manager sees it as Unassigned, assigns it to the employee.
 - [ ] Employee sees only that case, clicks Start, replies, resolves with details (below the minimum length is refused).

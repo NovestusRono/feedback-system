@@ -33,18 +33,18 @@ const ORDER = { Pending: 0, "In Progress": 1, Resolved: 2 };
 export async function listAssignedToMe() {
   const { data, error } = await sb
     .from("feedback")
-    .select("id, reference_number, feedback_type, subject, status, created_at, customer_id, service_rating")
+    .select("id, reference_number, feedback_type, subject, status, created_at, customer_id, is_anonymous, service_rating")
     .order("created_at", { ascending: true })
     .limit(1000);
   if (error) return { ok: false, rows: [] };
   const rows = data || [];
-  const ids = [...new Set(rows.map((r) => r.customer_id))];
+  const ids = [...new Set(rows.filter((r) => r.customer_id).map((r) => r.customer_id))];
   const names = {};
   if (ids.length) {
     const { data: people } = await sb.from("profiles").select("id, first_name, last_name").in("id", ids);
     for (const p of people || []) names[p.id] = `${p.first_name || ""} ${p.last_name || ""}`.trim();
   }
-  rows.forEach((r) => { r.customer_name = names[r.customer_id] || "Customer"; });
+  rows.forEach((r) => { r.customer_name = r.is_anonymous ? "Anonymous User" : names[r.customer_id] || "Customer"; });
   // Cases that need action first (Pending, then In Progress), oldest first inside each group.
   rows.sort((a, b) => ORDER[a.status] - ORDER[b.status] || new Date(a.created_at) - new Date(b.created_at));
   return { ok: true, rows };

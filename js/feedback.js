@@ -194,6 +194,6 @@ export async function getStaffFeedbackDetail(id) {
     ...A.flatMap((a) => [a.assigned_employee_id, a.assigned_by_manager_id]), ...R.map((r) => r.author_id), ...H.map((h) => h.changed_by)].filter(Boolean))];
   const { data: people } = await sb.from("profiles").select("id, first_name, last_name, email, phone, role").in("id", ids);
   const byId = Object.fromEntries((people || []).map((p) => [p.id, p]));
-  const name = (pid) => { const p = byId[pid]; return p ? `${p.first_name || ""} ${p.last_name || ""}`.trim() || p.email : "Staff member"; };
+  const name = (pid) => { if (!pid) return f.is_anonymous ? "Anonymous User" : "Staff member"; const p = byId[pid]; return p ? `${p.first_name || ""} ${p.last_name || ""}`.trim() || p.email : "Staff member"; };
   return { feedback: f, customer: byId[f.customer_id] || null, assignments: A, responses: R, history: H, attachments: attachments.data || [], name };
 }
