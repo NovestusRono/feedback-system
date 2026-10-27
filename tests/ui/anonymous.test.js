@@ -80,6 +80,21 @@ const base = (o = {}) => ({ rpc: { anonymous_form_options: OPTS, submit_anonymou
     check("a logged-in customer may use the form and stays on it (not redirected)", /anonymous\.html$/.test(r.page.url()));
     await r.ctx.close(); }
 
+  console.log("\nWhen the page cannot run");
+  { const ctx = await browser.newContext(); const page = await ctx.newPage();
+    await page.goto("file://" + require("path").join(__dirname, "..", "..", "customer", "anonymous.html")); await page.waitForSelector("#ne-boot-banner");
+    check("opened as a plain file: a clear message explains to use a web address", /cannot run from a file/.test(await page.textContent("#ne-boot-banner")) && /localhost:8080/.test(await page.textContent("#ne-boot-banner")));
+    await ctx.close(); }
+  { const { ctx, page } = await visitor(base());
+    await page.route("**/js/anonymous.js", (rt) => rt.abort());
+    await page.goto(B + "/customer/anonymous.html"); await page.waitForSelector("#ne-boot-banner", { timeout: 9000 });
+    check("a missing script file (e.g. incomplete upload) shows a message instead of 'Loading...'", /could not load its scripts/.test(await page.textContent("#ne-boot-banner")));
+    await ctx.close(); }
+  { const { ctx, page } = await visitor(base());
+    await page.goto(B + "/customer/anonymous.html"); await page.waitForSelector("#form"); await page.waitForTimeout(5600);
+    check("no warning banner appears when everything loads", (await page.locator("#ne-boot-banner").count()) === 0);
+    await ctx.close(); }
+
   console.log("\nHow staff see it");
   const F = { id: uuid(1), customer_id: null, is_anonymous: true, reference_number: "NYO-20261027-AB12CD34", feedback_type: "complaint", subject: "Rude service", description: "The cashier ignored me.", service_rating: 2, status: "Pending",
     created_at: "2026-10-27T08:00:00Z", resolved_at: null, resolved_by: null, resolution_details: null, served_by_employee_id: null, product_service_category: null, product_name: null, purchase_reference: null, preferred_response_method: null };

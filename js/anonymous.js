@@ -6,7 +6,8 @@ import { validateFeedback, DEFAULT_CATEGORIES } from "./feedback.js";
 /** { enabled, categories }. If the lookup fails the form stays usable with no categories. */
 export async function loadAnonymousOptions() {
   try {
-    const { data, error } = await sb.rpc("anonymous_form_options");
+    // A slow or unreachable backend must not leave the page on "Loading...": give up after 6 seconds.
+    const { data, error } = await Promise.race([sb.rpc("anonymous_form_options"), new Promise((res) => setTimeout(() => res({ data: null, error: { message: "timeout" } }), 6000))]);
     if (error || !data) return { enabled: true, categories: DEFAULT_CATEGORIES };
     return { enabled: data.enabled !== false, categories: Array.isArray(data.categories) ? data.categories.map(String) : [] };
   } catch (_) { return { enabled: true, categories: DEFAULT_CATEGORIES }; }

@@ -16,7 +16,7 @@ Edit `js/supabase-client.js`, replace the two placeholders with the URL and anon
 ```
 node scripts/serve.mjs
 ```
-Open http://localhost:8080/ .
+Open http://localhost:8080/ . If a page ever sits on "Loading..." or stays blank, you opened the file directly or some files are missing: a banner at the top of the page now says which.
 
 ## 4. First administrator
 1. Go to Customer login -> Register and create an account with your email.

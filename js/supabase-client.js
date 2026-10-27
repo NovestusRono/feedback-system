@@ -4,6 +4,8 @@
 const SUPABASE_URL = "https://YOUR-PROJECT-REF.supabase.co";
 const SUPABASE_ANON_KEY = "YOUR-ANON-KEY";
 
+window.__nyotaLoaded = true;   // tells assets/boot-check.js that ES modules work
+
 export const isConfigured = !SUPABASE_URL.includes("YOUR-PROJECT-REF") && !SUPABASE_ANON_KEY.includes("YOUR-ANON-KEY");
 
 // supabase-js v2 is loaded as a classic script (window.supabase) before this module.
