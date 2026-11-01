@@ -27,6 +27,11 @@ function scan(file) {
 }
 walk(ROOT);
 const cfg = fs.readFileSync(path.join(ROOT, "js/supabase-client.js"), "utf8");
-if (/YOUR-PROJECT-REF|YOUR-ANON-KEY/.test(cfg) && !process.argv.includes("--allow-placeholders")) problems.push("js/supabase-client.js still has placeholder URL/anon key (use --allow-placeholders for a dry run)");
+// Look only at the two assigned values, not at the rest of the file (which mentions the placeholder text in code).
+const urlVal = (cfg.match(/const SUPABASE_URL\s*=\s*["']([^"']*)["']/) || [])[1];
+const keyVal = (cfg.match(/const SUPABASE_ANON_KEY\s*=\s*["']([^"']*)["']/) || [])[1];
+if (urlVal === undefined || keyVal === undefined) problems.push("js/supabase-client.js: could not find SUPABASE_URL / SUPABASE_ANON_KEY");
+else if ((/YOUR-/.test(urlVal) || /YOUR-/.test(keyVal)) && !process.argv.includes("--allow-placeholders")) problems.push("js/supabase-client.js still has placeholder URL/anon key (use --allow-placeholders for a dry run)");
+else if (!process.argv.includes("--allow-placeholders") && !/^https:\/\/[a-z0-9]{20}\.supabase\.co$/.test(urlVal)) problems.push("js/supabase-client.js: SUPABASE_URL should look like https://<20 letters>.supabase.co (no trailing slash)");
 if (problems.length) { console.error("RELEASE CHECK FAILED\n - " + problems.join("\n - ")); process.exit(1); }
 console.log("Release check passed.");

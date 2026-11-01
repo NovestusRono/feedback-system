@@ -1,8 +1,8 @@
 // Supabase browser client. The URL and ANON key are public by design: Row Level
 // Security protects the data. NEVER put the service-role key in this repository.
 // Replace the two placeholders below with your project's values (Supabase > Project Settings > API).
-const SUPABASE_URL = "https://YOUR-PROJECT-REF.supabase.co";
-const SUPABASE_ANON_KEY = "YOUR-ANON-KEY";
+const SUPABASE_URL = "https://gqzblcpytfzzbvpgtkux.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdxemJsY3B5dGZ6emJ2cGd0a3V4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM1MDEwODEsImV4cCI6MjEwOTA3NzA4MX0.o9JTnw9euXDcHzsGQg9MyZIVYk17gG5j0t08uLVpPtk";
 
 window.__nyotaLoaded = true;   // tells assets/boot-check.js that ES modules work
 
