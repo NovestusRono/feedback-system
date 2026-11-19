@@ -36,6 +36,34 @@ a { color: var(--ne-link); }
 .ne-types { font-weight: 700; margin-top: 2rem; display: flex; flex-wrap: wrap; justify-content: center; gap: .25rem 0; }
 .ne-types span + span::before { content: "\2022"; margin: 0 .9rem; }
 
+/* Public About page */
+.ne-about { width: calc(100% - 2rem); max-width: 1120px; margin: 1.75rem auto 2rem; }
+.ne-about-hero, .ne-about-cta { background: var(--ne-hero); border-radius: 16px; text-align: center; }
+.ne-about-hero { padding: 2rem 1.5rem; margin-bottom: 2.25rem; }
+.ne-about-hero h1 { font-size: clamp(1.7rem, 4vw, 2.5rem); font-weight: 800; letter-spacing: .02em; margin: 0 0 .35rem; }
+.ne-about-hero p, .ne-about-cta p { color: var(--ne-muted); margin: 0; }
+.ne-about-section { margin: 0 0 2rem; }
+.ne-about-section h2, .ne-about-cta h2 { font-size: 1.35rem; font-weight: 800; margin: 0 0 .6rem; }
+.ne-about-section h2::after, .ne-about-cta h2::after { content: ""; display: block; width: 3rem; height: 3px; background: var(--ne-amber); margin-top: .45rem; }
+.ne-about-section > p { max-width: 800px; color: var(--ne-muted); margin: 0; }
+.ne-about-grid { display: grid; gap: 1rem; }
+.ne-about-values, .ne-about-ways { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.ne-about-steps { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.ne-about-card { min-width: 0; border: 2px solid var(--ne-line); border-radius: 10px; padding: 1rem 1.1rem; }
+.ne-about-card h3 { font-size: 1rem; font-weight: 800; margin: 0 0 .35rem; }
+.ne-about-card p { color: var(--ne-muted); margin: 0; }
+.ne-about-step { width: 1.8rem; height: 1.8rem; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--ne-amber); font-weight: 800; margin-bottom: .6rem; }
+.ne-about-copy { margin-top: 1.1rem !important; }
+.ne-about-cta { padding: 1.5rem 1rem; }
+.ne-about-cta h2 { margin-bottom: .35rem; }
+.ne-about-cta h2::after { margin: .45rem auto 0; }
+.ne-about-cta .btn { margin-top: .8rem; }
+@media (max-width: 767px) {
+  .ne-about-values, .ne-about-ways { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ne-about-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 479px) { .ne-about-values, .ne-about-ways, .ne-about-steps { grid-template-columns: 1fr; } }
+
 /* Buttons */
 .btn-ne { background: var(--ne-amber); color: var(--ne-navy); font-weight: 800; letter-spacing: .02em; border: 0; border-radius: var(--ne-radius); padding: .8rem 1.6rem; text-transform: uppercase; }
 .btn-ne:hover, .btn-ne:focus { background: var(--ne-amber-hover); color: var(--ne-navy); }
